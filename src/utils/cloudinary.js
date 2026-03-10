@@ -9,7 +9,7 @@ const configureCloudinary = () => {
   });
 };
 
-const uploadToCloudinary = async (localFilePath) => {
+const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
 
@@ -28,4 +28,4 @@ const uploadToCloudinary = async (localFilePath) => {
   }
 };
 
-export { uploadToCloudinary, configureCloudinary };
+export { uploadOnCloudinary, configureCloudinary };
