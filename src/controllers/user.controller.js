@@ -1,8 +1,10 @@
+import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { OPTIONS } from "../constants.js";
 
 const generateAccessAndRefreshTokens = async (user) => {
   try {
@@ -129,15 +131,10 @@ const loginUser = asyncHandler(async (req, res) => {
   );
 
   // send cookie
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
-
   return res
     .status(200)
-    .cookie("accessToken", accessToken, options)
-    .cookie("refreshToken", refreshToken, options)
+    .cookie("accessToken", accessToken, OPTIONS)
+    .cookie("refreshToken", refreshToken, OPTIONS)
     .json(
       new ApiResponse(
         200,
@@ -156,24 +153,66 @@ const logoutUser = asyncHandler(async (req, res) => {
     req.user._id,
     {
       $set: {
-        refreshToken: undefined
-      }
+        refreshToken: undefined,
+      },
     },
     {
-      returnDocument: "after"
+      returnDocument: "after",
     }
-  )
-
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
+  );
 
   return res
-  .status(200)
-  .clearCookie("accessToken", options)
-  .clearCookie("refreshToken", options)
-  .json(new ApiResponse(200, {}, "User logged out."))
-})
+    .status(200)
+    .clearCookie("accessToken", OPTIONS)
+    .clearCookie("refreshToken", OPTIONS)
+    .json(new ApiResponse(200, {}, "User logged out."));
+});
 
-export { registerUser, loginUser, logoutUser };
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies?.refreshToken ||
+    req.header("Authorization")?.replace("Bearer ", "");
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "Unauthorized request");
+  }
+
+  try {
+    const decodedTokenInfo = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedTokenInfo?._id);
+
+    if (!user) {
+      throw new ApiError(401, "Invalid refresh token");
+    }
+
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "Refresh token is expired or already used!");
+    }
+
+    const { accessToken, refreshToken } =
+      await generateAccessAndRefreshTokens(user);
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, OPTIONS)
+      .cookie("refreshToken", refreshToken, OPTIONS)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            accessToken,
+            refreshToken,
+          },
+          "Access token refreshed."
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh token!");
+  }
+});
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken };
