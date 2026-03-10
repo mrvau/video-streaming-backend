@@ -37,7 +37,6 @@ const userSchema = new Schema(
     },
     refreshToken: {
       type: String,
-      required: true,
     },
     watchHistory: [
       {
@@ -49,16 +48,15 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-userSchema.pre("save", async function (next) {
-  if(!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
   this.password = await bcrypt.hash(this.password, 10);
-  next()
-})
+});
 
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
-}
+};
 
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
@@ -73,7 +71,7 @@ userSchema.methods.generateAccessToken = function () {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
     }
   );
-}
+};
 
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
@@ -85,6 +83,6 @@ userSchema.methods.generateRefreshToken = function () {
       expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
   );
-}
+};
 
 export const User = mongoose.model("User", userSchema);
