@@ -134,51 +134,29 @@ const publishAVideo = asyncHandler(async (req, res) => {
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-  const video = await Video.findOne({ _id: videoId });
-  // const video = await Video.aggregate([
-  //   {
-  //     $match: mongoose.Types.ObjectId(videoId)
-  //   },
-  //   {
-  //     $unionWith: {
-  //       coll: "users",
-  //       pipeline: [
-  //         {
-  //           $match: {
-  //             _id: mongoose.Types.ObjectId(req.user._id)
-  //           }
-  //         },
-  //         {
-  //           $addFields: {
-  //             watchHistory: {
-  //               $cond: {
-  //                 if: {
-  //                   $not: {
-  //                     $in: ["$watchHistory", [mongoose.Types.ObjectId(videoId)]]
-  //                   }
-  //                 },
-  //                 then: {
-  //                   $concatArrays: ["$watchHistory", [mongoose.Types.ObjectId(videoId)]]
-  //                 },
-  //                 else: "$watchHistory"
-  //               }
-  //             }
-  //           }
-  //         }
-  //       ]
-  //     }
-  //   }
-  // ]);
+  if (!isValidObjectId(videoId)) throw new ApiError(400, "Invalid video ID!");
+
+  const video = await Video.findById(videoId);
 
   if (!video) throw new ApiError(404, "Video not found!");
 
-  // const user = User.
+  const result = await User.updateOne(
+    { _id: req.user._id, watchHistory: { $ne: video._id } },
+    { $push: { watchHistory: video._id } }
+  );
+
+  const updatedVideo =
+    result.modifiedCount > 0
+      ? await Video.findByIdAndUpdate(
+          videoId,
+          { $inc: { views: 1 } },
+          { new: true }
+        )
+      : video;
 
   return res
     .status(200)
-    .json(
-      new ApiResponse(200, video, "Successfully found the video.")
-    );
+    .json(new ApiResponse(200, updatedVideo, "Successfully found the video."));
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
