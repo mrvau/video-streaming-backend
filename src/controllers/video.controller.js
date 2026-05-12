@@ -198,12 +198,13 @@ const updateVideo = asyncHandler(async (req, res) => {
     if (!thumbnail)
       throw new ApiError(500, "Error while uploading on the cloud!");
 
-    const public_id = video.thumbnail.split("/")
+    const splitUrl = video.thumbnail.split("/")
 
-    console.log(video.thumbnail)
+    const file = splitUrl.at(-1).split(".")
 
-    // await deleteFromCloudinary(video.thumbnail)
-    fieldsToUpdate.thumbnail = thumbnail.url;
+    await deleteFromCloudinary(file)
+
+    fieldsToUpdate.thumbnail = thumbnail.url
   }
 
   const updatedVideo = await Video.findByIdAndUpdate(
@@ -224,13 +225,17 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
   if (!isValidObjectId(videoId)) throw new ApiError(400, "Invalid video ID!");
 
-  const video = await Video.findByIdAndDelete(videoId);
+  const video = await Video.findById(videoId);
 
   if (!video) throw new ApiError(404, "Video not found!");
+  
+  if(video.owner.toString() !== req.user._id.toString()) throw new ApiError(403, "You are not allowed to delete this video!")
+
+  const deletedVideo = await Video.findByIdAndDelete(videoId)
 
   return res
     .status(200)
-    .json(new ApiResponse(200, video, "Video deleted successfully."));
+    .json(new ApiResponse(200, deletedVideo, "Video deleted successfully."));
 });
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
@@ -238,7 +243,13 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
   if (!isValidObjectId(videoId)) throw new ApiError(400, "Invalid video ID!");
 
-  const video = await Video.findByIdAndUpdate(
+  const video = await Video.findById(videoId);
+
+  if(!video) throw new ApiError(404, "This video is not found!")
+
+  if(video.owner.toString() !== req.user._id.toString()) throw new ApiError(403, "You are not allowed to update video information!")
+
+  const updatedVideo = await Video.findByIdAndUpdate(
     videoId,
     [
       {
@@ -255,7 +266,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, video, "Video publish status updated successfully.")
+      new ApiResponse(200, updatedVideo, "Video publish status updated successfully.")
     );
 });
 
