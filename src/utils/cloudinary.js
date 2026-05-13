@@ -28,10 +28,11 @@ const uploadOnCloudinary = async (localFilePath) => {
   }
 };
 
-const deleteFromCloudinary = async (file) => {
+const deleteFromCloudinary = async (url) => {
   try {
-    if(!file) return null
+    if(!url) return null
 
+    const file = url.split("/").at(-1).split(".")
     const [public_id, type] = file;
 
     const response = await cloudinary.uploader.destroy(public_id, {resource_type: type === "jpg" ? "image" : "video"})

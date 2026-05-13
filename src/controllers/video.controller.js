@@ -8,6 +8,9 @@ import {
   uploadOnCloudinary,
   deleteFromCloudinary,
 } from "../utils/cloudinary.js";
+import { Comment } from "../models/comment.model.js";
+import { Like } from "../models/like.model.js";
+import { Playlist } from "../models/playlist.model.js";
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -15,7 +18,16 @@ const getAllVideos = asyncHandler(async (req, res) => {
   const match = { isPublished: true };
 
   if (query) match.$text = { $search: query };
-  if (userId) match.owner = new mongoose.Types.ObjectId(userId);
+  if (userId) {
+    if(!isValidObjectId(userId)) throw new ApiError(400, "Invalid user id!")
+    match.owner = new mongoose.Types.ObjectId(userId);
+  }
+
+  const ALLOWED_SORT_FIELDS = ["createdAt", "views", "title", "duration"]
+  const ALLOWED_SORT_TYPES = ["asc", "desc"]
+
+  const safeSortBy = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : "createdAt"
+  const safeSortType = ALLOWED_SORT_TYPES.includes(sortType) ? sortType : "asc"
 
   const pipeline = [
     {
@@ -23,7 +35,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
     },
     {
       $sort: {
-        [sortBy]: sortType === "asc" ? 1 : -1,
+        [safeSortBy]: safeSortType === "asc" ? 1 : -1,
       },
     },
     "__PREPAGINATE__",
@@ -198,11 +210,7 @@ const updateVideo = asyncHandler(async (req, res) => {
     if (!thumbnail)
       throw new ApiError(500, "Error while uploading on the cloud!");
 
-    const splitUrl = video.thumbnail.split("/")
-
-    const file = splitUrl.at(-1).split(".")
-
-    await deleteFromCloudinary(file)
+    await deleteFromCloudinary(video.thumbnail)
 
     fieldsToUpdate.thumbnail = thumbnail.url
   }
@@ -232,6 +240,14 @@ const deleteVideo = asyncHandler(async (req, res) => {
   if(video.owner.toString() !== req.user._id.toString()) throw new ApiError(403, "You are not allowed to delete this video!")
 
   const deletedVideo = await Video.findByIdAndDelete(videoId)
+
+  await Promise.all([
+    deleteFromCloudinary(deletedVideo.videoFile),
+    deleteFromCloudinary(deletedVideo.thumbnail),
+    Comment.deleteMany({video: videoId}),
+    Like.deleteMany({video: videoId}),
+    Playlist.updateMany({videos: videoId}, {$pull: {videos: videoId}})
+  ]);
 
   return res
     .status(200)

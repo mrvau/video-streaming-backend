@@ -3,36 +3,84 @@ import { Like } from "../models/like.model.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { Video } from "../models/video.model.js";
+
+const toggle = async (resourceId, userId, resourceType) => {
+  if (!isValidObjectId(resourceId))
+    return { data: null, error: true, message: `Invalid ${resourceType} id!` };
+
+  try {
+    const [liked] = await Like.find({
+      [resourceType]: resourceId,
+      likedBy: userId,
+    });
+
+    if (liked) {
+      const disliked = await Like.findByIdAndDelete(liked._id);
+
+      return {
+        data: disliked,
+        message: `Successfully disliked the ${resourceType}`,
+        error: false,
+      };
+    }
+
+    const like = await Like.create({
+      [resourceType]: new mongoose.Types.ObjectId(resourceId),
+      likedBy: userId,
+    });
+
+    return {
+      data: like,
+      message: `Successfully liked the ${resourceType}`,
+      error: false,
+    };
+  } catch (error) {
+    return { data: null, error: true, message: error.message };
+  }
+};
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  
-  if(!isValidObjectId(videoId)) throw new ApiError(400, "Invalid video ID!")
 
-  const video = await Video.findById(videoId)
+  const result = await toggle(videoId, req.user._id, "video");
 
-  if(video.owner.toString() !== req.user._id.toString()) throw new ApiError(403, "You are not allowed to toggle like for this video!")
+  if (result.error) throw new ApiError(400, result.message);
 
-  
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result.data, result.message));
 });
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
-  //TODO: toggle like on comment
+
+  const result = await toggle(commentId, req.user._id, "comment");
+
+  if (result.error) throw new ApiError(400, result.message);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result.data, result.message));
 });
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  //TODO: toggle like on tweet
+
+  const result = await toggle(tweetId, req.user._id, "tweet")
+
+  if(result.error) throw new ApiError(400, result.message)
+
+  return res
+      .status(200)
+      .json(new ApiResponse(200, result.data, result.message));
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-  const videos = await Video.aggregate([
+  const videos = await Like.aggregate([
     {
       $match: {
-        likedBy: new mongoose.Types.ObjectId(req.user._id),
-        video: { $exists: "true" },
+        likedBy: req.user._id,
+        video: { $exists: true },
       },
     },
     {
@@ -63,11 +111,11 @@ const getLikedVideos = asyncHandler(async (req, res) => {
     },
   ]);
 
-  if(!videos) throw new ApiError(404, "Liked videos not found!")
+  if (!videos.length) throw new ApiError(404, "Liked videos not found!");
 
-    console.log(videos)
-
-  return res.status(200).json(new ApiResponse(200, videos, "Fetched liked videos successfully"))
+  return res
+    .status(200)
+    .json(new ApiResponse(200, videos, "Fetched liked videos successfully"));
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
