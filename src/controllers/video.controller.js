@@ -38,7 +38,6 @@ const getAllVideos = asyncHandler(async (req, res) => {
         [safeSortBy]: safeSortType === "asc" ? 1 : -1,
       },
     },
-    "__PREPAGINATE__",
     {
       $lookup: {
         from: "users",
@@ -233,19 +232,20 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
   if (!isValidObjectId(videoId)) throw new ApiError(400, "Invalid video ID!");
 
-  const video = await Video.findById(videoId);
+  const deletedVideo = await Video.findOneAndDelete({
+    _id: videoId,
+    owner: req.user._id,
+  });
 
-  if (!video) throw new ApiError(404, "Video not found!");
-  
-  if(video.owner.toString() !== req.user._id.toString()) throw new ApiError(403, "You are not allowed to delete this video!")
+  if (!deletedVideo) throw new ApiError(404, "Video not found or you are not the owner!");
 
-  const deletedVideo = await Video.findByIdAndDelete(videoId)
+  const commentIds = await Comment.find({video: videoId}).distinct('_id');
 
   await Promise.all([
     deleteFromCloudinary(deletedVideo.videoFile),
     deleteFromCloudinary(deletedVideo.thumbnail),
     Comment.deleteMany({video: videoId}),
-    Like.deleteMany({video: videoId}),
+    Like.deleteMany({ $or: [{video: videoId}, {comment: {$in: commentIds}}] }),
     Playlist.updateMany({videos: videoId}, {$pull: {videos: videoId}})
   ]);
 

@@ -30,7 +30,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // validation - not empty fields
   if (
-    [fullName, username, email, password].some((field) => field?.trim() === "")
+    [fullName, username, email, password].some((field) => !field?.trim())
   ) {
     throw new ApiError(400, "All fields are required!");
   }
@@ -105,6 +105,10 @@ const loginUser = asyncHandler(async (req, res) => {
   // validation - not empty
   if (!username && !email) {
     throw new ApiError(400, "Email or Username is required!");
+  }
+
+  if (!password) {
+    throw new ApiError(400, "Password is required!");
   }
 
   // check if the user exist - email/username
@@ -233,7 +237,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
   }
 
   user.password = newPassword;
-  user.save({ validateBeforeSave: false });
+  await user.save({ validateBeforeSave: false });
 
   return res
     .status(200)

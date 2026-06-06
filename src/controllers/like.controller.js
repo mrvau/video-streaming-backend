@@ -79,7 +79,7 @@ const getLikedVideos = asyncHandler(async (req, res) => {
   const videos = await Like.aggregate([
     {
       $match: {
-        likedBy: req.user._id,
+        likedBy: new mongoose.Types.ObjectId(req.user._id),
         video: { $exists: true },
       },
     },
@@ -110,8 +110,6 @@ const getLikedVideos = asyncHandler(async (req, res) => {
       $unset: "likedVideo",
     },
   ]);
-
-  if (!videos.length) throw new ApiError(404, "Liked videos not found!");
 
   return res
     .status(200)

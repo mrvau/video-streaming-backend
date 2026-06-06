@@ -35,7 +35,8 @@ const deleteFromCloudinary = async (url) => {
     const file = url.split("/").at(-1).split(".")
     const [public_id, type] = file;
 
-    const response = await cloudinary.uploader.destroy(public_id, {resource_type: type === "jpg" ? "image" : "video"})
+    const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp", "svg"];
+    const response = await cloudinary.uploader.destroy(public_id, {resource_type: imageExts.includes(type?.toLowerCase()) ? "image" : "video"})
 
     console.log("File is deleted from Cloudinary.")
     return response;
